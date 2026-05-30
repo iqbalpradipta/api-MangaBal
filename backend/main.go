@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"scrapingmanga/backend/config"
 	"scrapingmanga/backend/migration"
@@ -37,7 +38,7 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{utils.GetEnv("FRONTEND_ORIGIN", "*")},
+		AllowOrigins: splitOrigins(utils.GetEnv("FRONTEND_ORIGIN", "*")),
 		AllowMethods: []string{
 			http.MethodGet,
 			http.MethodPost,
@@ -67,4 +68,19 @@ func main() {
 	if err := e.Start(addr); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
+}
+
+func splitOrigins(value string) []string {
+	parts := strings.Split(value, ",")
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		origin := strings.TrimSpace(part)
+		if origin != "" {
+			origins = append(origins, origin)
+		}
+	}
+	if len(origins) == 0 {
+		return []string{"*"}
+	}
+	return origins
 }

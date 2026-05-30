@@ -4,6 +4,8 @@ info:
   version: 0.1.0
   description: Manga API with Go Echo MVC, background Python ingest jobs, and BalStorage-backed page storage.
 servers:
+  - url: https://manga.iqbalpradipta.my.id/api/v1
+    description: Production Manga API
   - url: http://localhost:8001/api/v1
     description: Local Manga API
 tags:
@@ -857,4 +859,3 @@ components:
       properties:
         error_message:
           type: string
-

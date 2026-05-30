@@ -37,6 +37,7 @@ Swagger UI:
 
 ```text
 GET /swagger
+https://manga.iqbalpradipta.my.id/swagger
 ```
 
 Public read endpoints:
