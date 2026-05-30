@@ -1,0 +1,85 @@
+pipeline {
+    agent any
+
+    triggers {
+        githubPush()
+    }
+
+    environment {
+        TARGET_PATH = '~/api-MangaBal'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Test') {
+            parallel {
+                stage('Backend') {
+                    steps {
+                        dir('backend') {
+                            sh 'go vet ./...'
+                            sh 'go test ./... -v -count=1'
+                        }
+                    }
+                }
+
+                stage('Python') {
+                    steps {
+                        sh 'python3 -m compileall scripts manga_source'
+                    }
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'target-host', variable: 'TARGET_HOST'),
+                    sshUserPrivateKey(credentialsId: 'target-host-ssh', keyFileVariable: 'SSH_KEY')
+                ]) {
+                    sh '''
+                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "mkdir -p ${TARGET_PATH}"
+
+                        rsync -avz --delete \
+                            -e "ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no" \
+                            --exclude=.git \
+                            --exclude=__pycache__ \
+                            --exclude=*.pyc \
+                            --exclude=*.exe \
+                            --exclude=.env \
+                            --exclude=backend/.env \
+                            --exclude=deploy/.env.production \
+                            ./ ${TARGET_HOST}:${TARGET_PATH}/
+
+                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "cd ${TARGET_PATH}/deploy && bash scripts/deploy.sh"
+                    '''
+                }
+            }
+        }
+
+        stage('Verify') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'target-host', variable: 'TARGET_HOST'),
+                    sshUserPrivateKey(credentialsId: 'target-host-ssh', keyFileVariable: 'SSH_KEY')
+                ]) {
+                    sh '''
+                        sleep 10
+                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS http://localhost:8001/api/v1/health && echo 'Manga API OK'"
+                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS -o /dev/null http://localhost:8001/swagger && echo 'Swagger OK'"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo 'Deployment failed. Check Jenkins logs for details.'
+        }
+    }
+}

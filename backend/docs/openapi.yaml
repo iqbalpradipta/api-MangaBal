@@ -1,0 +1,860 @@
+openapi: 3.0.3
+info:
+  title: ScrapingManga API
+  version: 0.1.0
+  description: Manga API with Go Echo MVC, background Python ingest jobs, and BalStorage-backed page storage.
+servers:
+  - url: http://localhost:8001/api/v1
+    description: Local Manga API
+tags:
+  - name: Health
+  - name: Manga
+  - name: Chapters
+  - name: Genres
+  - name: Admin Ingest
+  - name: Internal Ingest
+security: []
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+
+  /manga:
+    get:
+      tags: [Manga]
+      summary: List manga from database
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Manga list fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MangaListResult"
+
+  /manga/search:
+    get:
+      tags: [Manga]
+      summary: Search manga from database
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          example: solo
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Manga search fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MangaListResult"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /manga/{slug}:
+    get:
+      tags: [Manga]
+      summary: Get manga detail
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Manga detail fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Manga"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /manga/{slug}/chapters:
+    get:
+      tags: [Chapters]
+      summary: List manga chapters
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Chapter list fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ChapterListResult"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /manga/{slug}/chapters/{chapter}:
+    get:
+      tags: [Chapters]
+      summary: Get chapter detail with BalStorage page URLs
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+        - name: chapter
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+      responses:
+        "200":
+          description: Chapter detail fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Chapter"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /genres:
+    get:
+      tags: [Genres]
+      summary: List genres from database
+      responses:
+        "200":
+          description: Genre list fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Genre"
+
+  /admin/ingest/all:
+    post:
+      tags: [Admin Ingest]
+      summary: Queue full manga ingest job
+      security:
+        - AdminToken: []
+      responses:
+        "202":
+          description: Ingest job queued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/IngestJob"
+        "401":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /admin/ingest/series:
+    post:
+      tags: [Admin Ingest]
+      summary: Queue one-series ingest job
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartSeriesIngestRequest"
+            example:
+              slug: mumumu
+      responses:
+        "202":
+          description: Ingest job queued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/IngestJob"
+
+  /admin/ingest/chapter:
+    post:
+      tags: [Admin Ingest]
+      summary: Queue one-chapter ingest job
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartChapterIngestRequest"
+            example:
+              slug: mumumu
+              chapter: 1
+      responses:
+        "202":
+          description: Ingest job queued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/IngestJob"
+
+  /admin/ingest/jobs:
+    get:
+      tags: [Admin Ingest]
+      summary: List ingest jobs
+      security:
+        - AdminToken: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Ingest jobs fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/IngestJobListResult"
+
+  /admin/ingest/jobs/{id}:
+    get:
+      tags: [Admin Ingest]
+      summary: Get ingest job detail
+      security:
+        - AdminToken: []
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Ingest job fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/IngestJob"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /admin/ingest/jobs/{id}/cancel:
+    post:
+      tags: [Admin Ingest]
+      summary: Cancel queued ingest job
+      security:
+        - AdminToken: []
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Ingest job cancelled
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/IngestJob"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /internal/ingest/jobs/{id}/progress:
+    post:
+      tags: [Internal Ingest]
+      summary: Update ingest job progress
+      security:
+        - InternalToken: []
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestProgressRequest"
+      responses:
+        "200":
+          description: Progress updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+
+  /internal/ingest/manga:
+    post:
+      tags: [Internal Ingest]
+      summary: Upsert manga metadata from Python ingest
+      security:
+        - InternalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestMangaRequest"
+      responses:
+        "200":
+          description: Manga upserted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+
+  /internal/ingest/chapters:
+    post:
+      tags: [Internal Ingest]
+      summary: Upsert chapter metadata from Python ingest
+      security:
+        - InternalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestChaptersRequest"
+      responses:
+        "200":
+          description: Chapters upserted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+
+  /internal/ingest/pages:
+    post:
+      tags: [Internal Ingest]
+      summary: Upsert page metadata and BalStorage URLs from Python ingest
+      security:
+        - InternalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestPagesRequest"
+      responses:
+        "200":
+          description: Pages upserted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+
+  /internal/ingest/jobs/{id}/finish:
+    post:
+      tags: [Internal Ingest]
+      summary: Mark ingest job as done
+      security:
+        - InternalToken: []
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestFinishRequest"
+      responses:
+        "200":
+          description: Job finished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+
+  /internal/ingest/jobs/{id}/fail:
+    post:
+      tags: [Internal Ingest]
+      summary: Mark ingest job as failed
+      security:
+        - InternalToken: []
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestFailRequest"
+      responses:
+        "200":
+          description: Job failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+
+components:
+  securitySchemes:
+    AdminToken:
+      type: apiKey
+      in: header
+      name: X-Admin-Token
+    InternalToken:
+      type: apiKey
+      in: header
+      name: X-Internal-Token
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+      example: mumumu
+    UUID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Response"
+
+  schemas:
+    Response:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          nullable: true
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+          format: int64
+
+    MangaListResult:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Manga"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    ChapterListResult:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Chapter"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    IngestJobListResult:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/IngestJob"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    Manga:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        upstream_id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        native_title:
+          type: string
+        author:
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+        format:
+          type: string
+        rating:
+          type: string
+        total_chapters:
+          type: integer
+        synopsis:
+          type: string
+        cover_file_id:
+          type: string
+        cover_preview_url:
+          type: string
+        cover_thumbnail_url:
+          type: string
+        balstorage_folder_id:
+          type: string
+        source:
+          type: string
+        last_synced_at:
+          type: string
+          format: date-time
+        genres:
+          type: array
+          items:
+            $ref: "#/components/schemas/Genre"
+
+    Chapter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        manga_id:
+          type: string
+          format: uuid
+        upstream_index:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        views:
+          type: integer
+        total_pages:
+          type: integer
+        balstorage_folder_id:
+          type: string
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/MangaPage"
+
+    MangaPage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        chapter_id:
+          type: string
+          format: uuid
+        page_number:
+          type: integer
+        source_image_url:
+          type: string
+        balstorage_file_id:
+          type: string
+        balstorage_folder_id:
+          type: string
+        preview_url:
+          type: string
+        download_url:
+          type: string
+        thumbnail_url:
+          type: string
+        mime_type:
+          type: string
+        size:
+          type: integer
+          format: int64
+
+    Genre:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        upstream_id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+
+    IngestJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [all, series, chapter, genres]
+        status:
+          type: string
+          enum: [queued, running, done, failed, cancelled]
+        target_slug:
+          type: string
+        target_chapter:
+          type: integer
+        total_manga:
+          type: integer
+        processed_manga:
+          type: integer
+        total_chapters:
+          type: integer
+        processed_chapters:
+          type: integer
+        total_pages:
+          type: integer
+        processed_pages:
+          type: integer
+        failed_items:
+          type: integer
+        message:
+          type: string
+        error_message:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    StartSeriesIngestRequest:
+      type: object
+      required: [slug]
+      properties:
+        slug:
+          type: string
+          example: mumumu
+
+    StartChapterIngestRequest:
+      type: object
+      required: [slug, chapter]
+      properties:
+        slug:
+          type: string
+          example: mumumu
+        chapter:
+          type: integer
+          minimum: 1
+          example: 1
+
+    IngestProgressRequest:
+      type: object
+      properties:
+        total_manga:
+          type: integer
+        processed_manga:
+          type: integer
+        total_chapters:
+          type: integer
+        processed_chapters:
+          type: integer
+        total_pages:
+          type: integer
+        processed_pages:
+          type: integer
+        failed_items:
+          type: integer
+        message:
+          type: string
+
+    IngestMangaRequest:
+      type: object
+      required: [job_id, upstream_id, slug, title]
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        upstream_id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        native_title:
+          type: string
+        author:
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+        format:
+          type: string
+        rating:
+          type: string
+        total_chapters:
+          type: integer
+        synopsis:
+          type: string
+        cover_file_id:
+          type: string
+        cover_preview_url:
+          type: string
+        cover_thumbnail_url:
+          type: string
+        balstorage_folder_id:
+          type: string
+        genres:
+          type: array
+          items:
+            type: string
+
+    IngestChaptersRequest:
+      type: object
+      required: [job_id, manga_slug, chapters]
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        manga_slug:
+          type: string
+        chapters:
+          type: array
+          items:
+            type: object
+            required: [index]
+            properties:
+              index:
+                type: integer
+              slug:
+                type: string
+              title:
+                type: string
+              views:
+                type: integer
+              total_pages:
+                type: integer
+              balstorage_folder_id:
+                type: string
+
+    IngestPagesRequest:
+      type: object
+      required: [job_id, manga_slug, chapter_index, pages]
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        manga_slug:
+          type: string
+        chapter_index:
+          type: integer
+        pages:
+          type: array
+          items:
+            type: object
+            required: [page_number]
+            properties:
+              page_number:
+                type: integer
+              source_image_url:
+                type: string
+              balstorage_file_id:
+                type: string
+              balstorage_folder_id:
+                type: string
+              preview_url:
+                type: string
+              download_url:
+                type: string
+              thumbnail_url:
+                type: string
+              mime_type:
+                type: string
+              size:
+                type: integer
+                format: int64
+
+    IngestFinishRequest:
+      type: object
+      properties:
+        message:
+          type: string
+
+    IngestFailRequest:
+      type: object
+      properties:
+        error_message:
+          type: string
+

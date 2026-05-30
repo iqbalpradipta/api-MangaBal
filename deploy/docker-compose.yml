@@ -1,0 +1,26 @@
+services:
+  manga-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    container_name: manga-api
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "127.0.0.1:8001:8001"
+    networks:
+      - manga-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8001/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  manga-network:
+    driver: bridge
+

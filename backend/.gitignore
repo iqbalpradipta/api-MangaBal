@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+*.exe
+*.test
+*.out
+tmp/
+storage/
+__pycache__/
+*.py[cod]
