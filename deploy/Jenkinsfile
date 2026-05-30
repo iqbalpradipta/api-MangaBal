@@ -83,7 +83,7 @@ pipeline {
                         sleep 10
                         ssh -i "${TMP_SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS http://localhost:8001/api/v1/health && echo 'Manga API OK' || (cd ${TARGET_PATH}/deploy && docker compose ps && docker logs --tail=200 manga-api && exit 1)"
                         ssh -i "${TMP_SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS -o /dev/null http://localhost:8001/swagger && echo 'Swagger OK'"
-                        ssh -i "${TMP_SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS --resolve ${DOMAIN}:443:127.0.0.1 -o /dev/null https://${DOMAIN}/swagger && echo 'Nginx HTTPS OK'"
+                        ssh -i "${TMP_SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl --http1.1 -fsS -o /dev/null https://${DOMAIN}/swagger && echo 'Nginx HTTPS OK' || (sudo nginx -T 2>/dev/null | grep -A40 -B5 '${DOMAIN}' || true; sudo tail -n 120 /var/log/nginx/error.log || true; exit 1)"
                     '''
                 }
             }
