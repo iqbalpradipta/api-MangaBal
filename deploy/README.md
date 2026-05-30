@@ -102,5 +102,20 @@ If using nginx, edit:
 deploy/nginx/manga-api.conf
 ```
 
-Then enable it manually or add symlink/reload steps to Jenkins after SSL is ready.
+The default domain is:
 
+```text
+manga.iqbalpradipta.my.id
+```
+
+Jenkins enables:
+
+```text
+/etc/nginx/sites-enabled/manga-api
+```
+
+Make sure the SSL certificate exists before the nginx reload step:
+
+```bash
+sudo certbot --nginx -d manga.iqbalpradipta.my.id
+```

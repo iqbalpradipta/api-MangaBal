@@ -7,6 +7,7 @@ pipeline {
 
     environment {
         TARGET_PATH = '~/api-MangaBal'
+        DOMAIN = 'manga.iqbalpradipta.my.id'
     }
 
     stages {
@@ -42,10 +43,15 @@ pipeline {
                     sshUserPrivateKey(credentialsId: 'target-host-ssh', keyFileVariable: 'SSH_KEY')
                 ]) {
                     sh '''
-                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "mkdir -p ${TARGET_PATH}"
+                        TMP_SSH_KEY="$(mktemp)"
+                        cp "${SSH_KEY}" "${TMP_SSH_KEY}"
+                        chmod 600 "${TMP_SSH_KEY}"
+                        trap 'rm -f "${TMP_SSH_KEY}"' EXIT
+
+                        ssh -i "${TMP_SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "mkdir -p ${TARGET_PATH}"
 
                         rsync -avz --delete \
-                            -e "ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no" \
+                            -e "ssh -i ${TMP_SSH_KEY} -o StrictHostKeyChecking=no" \
                             --exclude=.git \
                             --exclude=__pycache__ \
                             --exclude=*.pyc \
@@ -55,7 +61,8 @@ pipeline {
                             --exclude=deploy/.env.production \
                             ./ ${TARGET_HOST}:${TARGET_PATH}/
 
-                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "cd ${TARGET_PATH}/deploy && bash scripts/deploy.sh"
+                        ssh -i "${TMP_SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "cd ${TARGET_PATH}/deploy && bash scripts/deploy.sh"
+                        ssh -i "${TMP_SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "sudo ln -sf ${TARGET_PATH}/deploy/nginx/manga-api.conf /etc/nginx/sites-enabled/manga-api && sudo nginx -t && sudo systemctl reload nginx"
                     '''
                 }
             }
@@ -68,9 +75,15 @@ pipeline {
                     sshUserPrivateKey(credentialsId: 'target-host-ssh', keyFileVariable: 'SSH_KEY')
                 ]) {
                     sh '''
+                        TMP_SSH_KEY="$(mktemp)"
+                        cp "${SSH_KEY}" "${TMP_SSH_KEY}"
+                        chmod 600 "${TMP_SSH_KEY}"
+                        trap 'rm -f "${TMP_SSH_KEY}"' EXIT
+
                         sleep 10
-                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS http://localhost:8001/api/v1/health && echo 'Manga API OK'"
-                        ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS -o /dev/null http://localhost:8001/swagger && echo 'Swagger OK'"
+                        ssh -i "${TMP_SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS http://localhost:8001/api/v1/health && echo 'Manga API OK' || (cd ${TARGET_PATH}/deploy && docker compose ps && docker logs --tail=200 manga-api && exit 1)"
+                        ssh -i "${TMP_SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS -o /dev/null http://localhost:8001/swagger && echo 'Swagger OK'"
+                        ssh -i "${TMP_SSH_KEY}" -o StrictHostKeyChecking=no ${TARGET_HOST} "curl -fsS --resolve ${DOMAIN}:443:127.0.0.1 -o /dev/null https://${DOMAIN}/swagger && echo 'Nginx HTTPS OK'"
                     '''
                 }
             }

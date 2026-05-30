@@ -49,9 +49,20 @@ echo "Waiting for service health..."
 sleep 10
 
 echo "=== Manga API health ==="
-curl -sf http://localhost:8001/api/v1/health && echo " [OK]" || echo " [FAIL]"
+if curl -sf http://localhost:8001/api/v1/health; then
+  echo " [OK]"
+else
+  echo " [FAIL]"
+  echo ""
+  echo "=== docker compose ps ==="
+  docker compose ps
+  echo ""
+  echo "=== manga-api logs ==="
+  docker logs --tail=200 manga-api || true
+  exit 1
+fi
 
 echo ""
 echo "Deploy complete."
 echo "Swagger: http://localhost:8001/swagger"
-
+echo "Domain: https://manga.iqbalpradipta.my.id/swagger"
