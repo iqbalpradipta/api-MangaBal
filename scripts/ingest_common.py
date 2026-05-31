@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -64,12 +65,18 @@ class MangaIngestor:
         self.root_folder = self.storage.ensure_folder(self.args.balstorage_root)
 
     def post_internal(self, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        resp = self.http.post(f"{self.api_base}{path}", json=payload or {}, timeout=60)
+        resp = self.request_with_retry(
+            lambda: self.http.post(f"{self.api_base}{path}", json=payload or {}, timeout=60),
+            "internal callback",
+        )
         resp.raise_for_status()
         return resp.json()
 
     def get_api_data(self, path: str) -> dict[str, Any] | None:
-        resp = self.http.get(f"{self.api_base}{path}", timeout=60)
+        resp = self.request_with_retry(
+            lambda: self.http.get(f"{self.api_base}{path}", timeout=60),
+            "manga api lookup",
+        )
         if resp.status_code == 404:
             return None
         resp.raise_for_status()
@@ -255,7 +262,10 @@ class MangaIngestor:
         if not ext:
             ext = ".jpg"
         target = tmp_dir / f"{page_number:03d}{ext}"
-        resp = requests.get(url, headers=IMAGE_HEADERS, timeout=60)
+        resp = self.request_with_retry(
+            lambda: requests.get(url, headers=IMAGE_HEADERS, timeout=60),
+            "image download",
+        )
         resp.raise_for_status()
         target.write_bytes(resp.content)
         return target
@@ -297,10 +307,40 @@ class MangaIngestor:
         if not ext:
             ext = ".jpg"
         target = tmp_dir / f"{name}{ext}"
-        resp = requests.get(url, headers=IMAGE_HEADERS, timeout=60)
+        resp = self.request_with_retry(
+            lambda: requests.get(url, headers=IMAGE_HEADERS, timeout=60),
+            "image download",
+        )
         resp.raise_for_status()
         target.write_bytes(resp.content)
         return target
+
+    @staticmethod
+    def request_with_retry(
+        fn,
+        label: str,
+        retries: int = 3,
+        retry_statuses: set[int] | None = None,
+    ) -> requests.Response:
+        retry_statuses = retry_statuses or {408, 429, 500, 502, 503, 504}
+        last_error: Exception | None = None
+        for attempt in range(1, retries + 1):
+            try:
+                resp = fn()
+                if resp.status_code not in retry_statuses:
+                    return resp
+                last_error = RuntimeError(f"{label} HTTP {resp.status_code}: {resp.text[:300]}")
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                last_error = exc
+
+            if attempt < retries:
+                sleep_for = min(2 ** attempt, 10)
+                print(f"{label} failed, retrying in {sleep_for}s ({attempt}/{retries}): {last_error}")
+                time.sleep(sleep_for)
+
+        if last_error:
+            raise last_error
+        raise RuntimeError(f"{label} failed")
 
     def _series_details(self, series_id: int, fallback: dict[str, Any]) -> dict[str, Any]:
         try:

@@ -1,23 +1,28 @@
 import os
+import time
 from pathlib import Path
+from typing import Callable
 from typing import Any
 
 import requests
 
 
 class BalStorageClient:
-    def __init__(self, base_url: str, email: str, password: str, timeout: int = 60):
+    def __init__(self, base_url: str, email: str, password: str, timeout: int = 180, retries: int = 3):
         self.base_url = base_url.rstrip("/")
         self.email = email
         self.password = password
         self.timeout = timeout
+        self.retries = retries
         self.session = requests.Session()
 
     def login(self) -> None:
-        resp = self.session.post(
-            f"{self.base_url}/login",
-            json={"email": self.email, "password": self.password},
-            timeout=self.timeout,
+        resp = self._request(
+            lambda: self.session.post(
+                f"{self.base_url}/login",
+                json={"email": self.email, "password": self.password},
+                timeout=self.timeout,
+            )
         )
         if resp.status_code >= 400:
             body = resp.text[:500]
@@ -32,7 +37,9 @@ class BalStorageClient:
         params = {}
         if parent_id:
             params["parent_id"] = parent_id
-        resp = self.session.get(f"{self.base_url}/folders", params=params, timeout=self.timeout)
+        resp = self._request(
+            lambda: self.session.get(f"{self.base_url}/folders", params=params, timeout=self.timeout)
+        )
         resp.raise_for_status()
         return self._extract_items(resp.json())
 
@@ -41,10 +48,12 @@ class BalStorageClient:
             if folder.get("name") == name:
                 return folder
 
-        resp = self.session.post(
-            f"{self.base_url}/folders",
-            json={"name": name, "parent_id": parent_id},
-            timeout=self.timeout,
+        resp = self._request(
+            lambda: self.session.post(
+                f"{self.base_url}/folders",
+                json={"name": name, "parent_id": parent_id},
+                timeout=self.timeout,
+            )
         )
         resp.raise_for_status()
         data = resp.json().get("data")
@@ -56,10 +65,12 @@ class BalStorageClient:
         file_path = Path(path)
         with file_path.open("rb") as handle:
             files = [("files", (file_path.name, handle, self._mime_for(file_path)))]
-            resp = self.session.post(
-                f"{self.base_url}/folders/{folder_id}/files",
-                files=files,
-                timeout=self.timeout,
+            resp = self._request(
+                lambda: self.session.post(
+                    f"{self.base_url}/folders/{folder_id}/files",
+                    files=files,
+                    timeout=self.timeout,
+                )
             )
         resp.raise_for_status()
         items = self._extract_items(resp.json())
@@ -108,6 +119,26 @@ class BalStorageClient:
         if ext == ".gif":
             return "image/gif"
         return "application/octet-stream"
+
+    def _request(self, fn: Callable[[], requests.Response]) -> requests.Response:
+        last_error: Exception | None = None
+        for attempt in range(1, self.retries + 1):
+            try:
+                resp = fn()
+                if resp.status_code not in {408, 429, 500, 502, 503, 504}:
+                    return resp
+                last_error = RuntimeError(f"BalStorage HTTP {resp.status_code}: {resp.text[:300]}")
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                last_error = exc
+
+            if attempt < self.retries:
+                sleep_for = min(2 ** attempt, 10)
+                print(f"BalStorage request failed, retrying in {sleep_for}s ({attempt}/{self.retries}): {last_error}")
+                time.sleep(sleep_for)
+
+        if last_error:
+            raise last_error
+        raise RuntimeError("BalStorage request failed")
 
 
 def file_id_from_upload(upload: dict[str, Any]) -> str:
