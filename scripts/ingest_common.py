@@ -169,7 +169,14 @@ class MangaIngestor:
             chapters = chapters[: self.args.max_chapters]
 
         for chapter_meta in chapters:
-            self.ingest_chapter(slug, title, manga_folder, chapter_meta)
+            try:
+                self.ingest_chapter(slug, title, manga_folder, chapter_meta)
+            except Exception as exc:
+                self.failed_items += 1
+                chapter_index = self.chapter_key(chapter_meta.get("data", {}).get("index"))
+                self.progress(f"failed {title} chapter {chapter_index}: {exc}")
+                if only_chapter is not None:
+                    raise
 
         self.processed_manga += 1
 
@@ -183,6 +190,9 @@ class MangaIngestor:
         ch_data = chapter_meta.get("data", {})
         chapter_index = self.chapter_key(ch_data.get("index"))
         chapter_title = ch_data.get("title") or ""
+        if not self.valid_chapter_key(chapter_index):
+            raise RuntimeError(f"invalid chapter index: {chapter_index}")
+
         chapter_folder = self.storage.ensure_folder(
             sanitize_filename(f"Chapter {chapter_index}"),
             self._folder_id(manga_folder),
@@ -425,3 +435,11 @@ class MangaIngestor:
         if "." in text:
             text = text.rstrip("0").rstrip(".")
         return text
+
+    @classmethod
+    def valid_chapter_key(cls, value: Any) -> bool:
+        text = cls.chapter_key(value)
+        if not text or text == "0":
+            return False
+        parts = text.split(".", 1)
+        return all(part.isdigit() and part != "" for part in parts)
