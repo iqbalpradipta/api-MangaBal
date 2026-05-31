@@ -44,9 +44,9 @@ class BalStorageClient:
         return self._extract_items(resp.json())
 
     def ensure_folder(self, name: str, parent_id: str | None = None) -> dict[str, Any]:
-        for folder in self.list_folders(parent_id):
-            if folder.get("name") == name:
-                return folder
+        existing = self.find_folder(name, parent_id)
+        if existing:
+            return existing
 
         resp = self._request(
             lambda: self.session.post(
@@ -55,11 +55,24 @@ class BalStorageClient:
                 timeout=self.timeout,
             )
         )
+
+        if resp.status_code == 409:
+            existing = self.find_folder(name, parent_id)
+            if existing:
+                return existing
+            raise RuntimeError(f"BalStorage folder conflict but existing folder was not found: {name}")
+
         resp.raise_for_status()
         data = resp.json().get("data")
         if not isinstance(data, dict):
             raise RuntimeError("BalStorage create folder returned unexpected payload")
         return data
+
+    def find_folder(self, name: str, parent_id: str | None = None) -> dict[str, Any] | None:
+        for folder in self.list_folders(parent_id):
+            if folder.get("name") == name:
+                return folder
+        return None
 
     def upload_file(self, folder_id: str, path: str | Path) -> dict[str, Any]:
         file_path = Path(path)
