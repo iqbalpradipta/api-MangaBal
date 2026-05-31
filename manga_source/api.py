@@ -2,6 +2,7 @@
 Manga source API client.
 """
 
+import time
 import requests
 from typing import Optional
 
@@ -9,7 +10,7 @@ from typing import Optional
 class MangaSourceAPI:
     BASE_URL = "https://be.komikcast.cc"
 
-    def __init__(self, timeout: int = 30):
+    def __init__(self, timeout: int = 60, retries: int = 3):
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -17,12 +18,29 @@ class MangaSourceAPI:
             "Accept": "application/json",
         })
         self.timeout = timeout
+        self.retries = retries
 
     def _get(self, path: str, params: Optional[dict] = None) -> dict:
         url = f"{self.BASE_URL}{path}"
-        resp = self.session.get(url, params=params, timeout=self.timeout)
-        resp.raise_for_status()
-        return resp.json()
+        last_error: Exception | None = None
+        for attempt in range(1, self.retries + 1):
+            try:
+                resp = self.session.get(url, params=params, timeout=self.timeout)
+                if resp.status_code not in {408, 429, 500, 502, 503, 504}:
+                    resp.raise_for_status()
+                    return resp.json()
+                last_error = RuntimeError(f"source API HTTP {resp.status_code}: {resp.text[:300]}")
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                last_error = exc
+
+            if attempt < self.retries:
+                sleep_for = min(2 ** attempt, 10)
+                print(f"source API request failed, retrying in {sleep_for}s ({attempt}/{self.retries}): {last_error}")
+                time.sleep(sleep_for)
+
+        if last_error:
+            raise last_error
+        raise RuntimeError("source API request failed")
 
     # ── Series / Manga ────────────────────────────────────────────────
 
