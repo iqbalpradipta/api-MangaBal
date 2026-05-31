@@ -1,3 +1,5 @@
+name: api-mangabal
+
 services:
   manga-api:
     build:
@@ -23,4 +25,3 @@ services:
 networks:
   manga-network:
     driver: bridge
-

@@ -104,7 +104,7 @@ class MangaIngestor:
         except Exception:
             pass
 
-    def ingest_series(self, series: dict[str, Any], only_chapter: int | None = None) -> None:
+    def ingest_series(self, series: dict[str, Any], only_chapter: str | None = None) -> None:
         data = series.get("data", {})
         series_id = series.get("id")
         slug = data.get("slug")
@@ -154,7 +154,10 @@ class MangaIngestor:
 
         chapters = list(self.api.all_chapters(int(series_id)))
         if only_chapter is not None:
-            chapters = [ch for ch in chapters if int(ch.get("data", {}).get("index", 0)) == only_chapter]
+            chapters = [
+                ch for ch in chapters
+                if self.chapter_key(ch.get("data", {}).get("index")) == self.chapter_key(only_chapter)
+            ]
         if self.args.max_chapters:
             chapters = chapters[: self.args.max_chapters]
 
@@ -171,7 +174,7 @@ class MangaIngestor:
         chapter_meta: dict[str, Any],
     ) -> None:
         ch_data = chapter_meta.get("data", {})
-        chapter_index = int(ch_data.get("index"))
+        chapter_index = self.chapter_key(ch_data.get("index"))
         chapter_title = ch_data.get("title") or ""
         chapter_folder = self.storage.ensure_folder(
             sanitize_filename(f"Chapter {chapter_index}"),
@@ -375,3 +378,10 @@ class MangaIngestor:
         if ext == ".webp":
             return "image/webp"
         return "application/octet-stream"
+
+    @staticmethod
+    def chapter_key(value: Any) -> str:
+        text = str(value).strip()
+        if "." in text:
+            text = text.rstrip("0").rstrip(".")
+        return text

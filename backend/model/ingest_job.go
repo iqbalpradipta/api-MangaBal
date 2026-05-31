@@ -26,6 +26,7 @@ type IngestJob struct {
 	Status            string     `json:"status" gorm:"not null;index"`
 	TargetSlug        string     `json:"target_slug"`
 	TargetChapter     int        `json:"target_chapter"`
+	TargetChapterKey  string     `json:"target_chapter_key"`
 	Force             bool       `json:"force"`
 	MissingOnly       bool       `json:"missing_only"`
 	TotalManga        int        `json:"total_manga"`

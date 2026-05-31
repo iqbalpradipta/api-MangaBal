@@ -11,6 +11,7 @@ type Chapter struct {
 	ID                 string         `json:"id" gorm:"type:uuid;primaryKey"`
 	MangaID            string         `json:"manga_id" gorm:"type:uuid;not null;index;uniqueIndex:idx_manga_chapter"`
 	UpstreamIndex      int            `json:"upstream_index" gorm:"not null;uniqueIndex:idx_manga_chapter"`
+	ChapterKey         string         `json:"chapter_key" gorm:"index"`
 	Slug               string         `json:"slug" gorm:"index"`
 	Title              string         `json:"title"`
 	Views              int            `json:"views"`

@@ -120,7 +120,11 @@ func (s *IngestWorkerService) commandArgs(job *model.IngestJob) []string {
 		args = append(args, "--slug", job.TargetSlug)
 	}
 	if job.Type == model.IngestTypeChapter {
-		args = append(args, "--chapter", strconv.Itoa(job.TargetChapter))
+		chapter := job.TargetChapterKey
+		if chapter == "" {
+			chapter = strconv.Itoa(job.TargetChapter)
+		}
+		args = append(args, "--chapter", chapter)
 	}
 	if job.Force {
 		args = append(args, "--force")

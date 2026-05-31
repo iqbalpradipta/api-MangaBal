@@ -4,7 +4,7 @@ from ingest_common import MangaIngestor, build_parser
 def main() -> int:
     parser = build_parser("Ingest one manga series or chapter into Manga API and BalStorage")
     parser.add_argument("--slug", required=True)
-    parser.add_argument("--chapter", type=int)
+    parser.add_argument("--chapter")
     args = parser.parse_args()
 
     ingestor = MangaIngestor(args)

@@ -82,7 +82,7 @@ Invoke-RestMethod `
   -Method Post `
   -Headers @{ "X-Admin-Token" = "<ADMIN_TOKEN>" } `
   -ContentType "application/json" `
-  -Body '{"slug":"mumumu","chapter":1,"missing_only":true,"force":false}' `
+  -Body '{"slug":"mumumu","chapter":"1","missing_only":true,"force":false}' `
   http://localhost:8001/api/v1/admin/ingest/chapter
 ```
 

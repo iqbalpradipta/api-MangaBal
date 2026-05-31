@@ -13,7 +13,7 @@ type ChapterListResult struct {
 
 type ChapterService interface {
 	ListByMangaSlug(slug string, page, limit int) (*ChapterListResult, error)
-	GetByMangaSlugAndIndex(slug string, chapterIndex int) (*model.Chapter, error)
+	GetByMangaSlugAndKey(slug string, chapterKey string) (*model.Chapter, error)
 }
 
 type chapterService struct {
@@ -56,11 +56,12 @@ func (s *chapterService) ListByMangaSlug(slug string, page, limit int) (*Chapter
 	}, nil
 }
 
-func (s *chapterService) GetByMangaSlugAndIndex(slug string, chapterIndex int) (*model.Chapter, error) {
+func (s *chapterService) GetByMangaSlugAndKey(slug string, chapterKey string) (*model.Chapter, error) {
 	if !utils.ValidSlug(slug) {
 		return nil, utils.ErrInvalidSlug
 	}
-	if chapterIndex < 1 {
+	chapterKey = utils.NormalizeChapterKey(chapterKey)
+	if !utils.ValidChapterKey(chapterKey) {
 		return nil, utils.ErrInvalidChapter
 	}
 
@@ -69,5 +70,5 @@ func (s *chapterService) GetByMangaSlugAndIndex(slug string, chapterIndex int) (
 		return nil, err
 	}
 
-	return s.chapterRepo.FindByMangaIDAndIndex(manga.ID, chapterIndex)
+	return s.chapterRepo.FindByMangaIDAndKey(manga.ID, chapterKey, utils.ChapterStorageIndex(chapterKey))
 }

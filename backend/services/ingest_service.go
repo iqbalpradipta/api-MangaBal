@@ -1,6 +1,9 @@
 package services
 
 import (
+	"encoding/json"
+	"strconv"
+	"strings"
 	"time"
 
 	"scrapingmanga/backend/model"
@@ -20,10 +23,38 @@ type StartSeriesIngestInput struct {
 }
 
 type StartChapterIngestInput struct {
-	Slug        string `json:"slug"`
-	Chapter     int    `json:"chapter"`
-	Force       bool   `json:"force"`
-	MissingOnly bool   `json:"missing_only"`
+	Slug        string     `json:"slug"`
+	Chapter     ChapterRef `json:"chapter"`
+	Force       bool       `json:"force"`
+	MissingOnly bool       `json:"missing_only"`
+}
+
+type ChapterRef string
+
+func (c *ChapterRef) UnmarshalJSON(data []byte) error {
+	var text string
+	if err := json.Unmarshal(data, &text); err == nil {
+		*c = ChapterRef(utils.NormalizeChapterKey(text))
+		return nil
+	}
+
+	var number json.Number
+	if err := json.Unmarshal(data, &number); err == nil {
+		*c = ChapterRef(utils.NormalizeChapterKey(number.String()))
+		return nil
+	}
+
+	var floatValue float64
+	if err := json.Unmarshal(data, &floatValue); err == nil {
+		*c = ChapterRef(utils.NormalizeChapterKey(strconv.FormatFloat(floatValue, 'f', -1, 64)))
+		return nil
+	}
+
+	return utils.ErrInvalidChapter
+}
+
+func (c ChapterRef) String() string {
+	return strings.TrimSpace(string(c))
 }
 
 type IngestProgressInput struct {
@@ -58,7 +89,7 @@ type IngestMangaInput struct {
 }
 
 type IngestChapterItem struct {
-	Index              int    `json:"index"`
+	Index              string `json:"index"`
 	Slug               string `json:"slug"`
 	Title              string `json:"title"`
 	Views              int    `json:"views"`
@@ -87,7 +118,7 @@ type IngestPageItem struct {
 type IngestPagesInput struct {
 	JobID        string           `json:"job_id"`
 	MangaSlug    string           `json:"manga_slug"`
-	ChapterIndex int              `json:"chapter_index"`
+	ChapterIndex string           `json:"chapter_index"`
 	Pages        []IngestPageItem `json:"pages"`
 }
 
@@ -182,18 +213,20 @@ func (s *ingestService) StartChapter(input StartChapterIngestInput) (*model.Inge
 	if !utils.ValidSlug(input.Slug) {
 		return nil, utils.ErrInvalidSlug
 	}
-	if input.Chapter < 1 {
+	chapterKey := utils.NormalizeChapterKey(input.Chapter.String())
+	if !utils.ValidChapterKey(chapterKey) {
 		return nil, utils.ErrInvalidChapter
 	}
 
 	job := &model.IngestJob{
-		Type:          model.IngestTypeChapter,
-		Status:        model.IngestStatusQueued,
-		TargetSlug:    input.Slug,
-		TargetChapter: input.Chapter,
-		Force:         input.Force,
-		MissingOnly:   input.MissingOnly,
-		Message:       "waiting for worker",
+		Type:             model.IngestTypeChapter,
+		Status:           model.IngestStatusQueued,
+		TargetSlug:       input.Slug,
+		TargetChapter:    utils.ChapterStorageIndex(chapterKey),
+		TargetChapterKey: chapterKey,
+		Force:            input.Force,
+		MissingOnly:      input.MissingOnly,
+		Message:          "waiting for worker",
 	}
 	return job, s.jobRepo.Create(job)
 }
@@ -356,12 +389,14 @@ func (s *ingestService) UpsertChapters(input IngestChaptersInput) error {
 
 	now := time.Now()
 	for _, item := range input.Chapters {
-		if item.Index < 1 {
+		chapterKey := utils.NormalizeChapterKey(item.Index)
+		if !utils.ValidChapterKey(chapterKey) {
 			return utils.ErrInvalidChapter
 		}
 		chapter := &model.Chapter{
 			MangaID:            manga.ID,
-			UpstreamIndex:      item.Index,
+			UpstreamIndex:      utils.ChapterStorageIndex(chapterKey),
+			ChapterKey:         chapterKey,
 			Slug:               item.Slug,
 			Title:              item.Title,
 			Views:              item.Views,
@@ -381,7 +416,8 @@ func (s *ingestService) UpsertPages(input IngestPagesInput) error {
 	if !utils.ValidSlug(input.MangaSlug) {
 		return utils.ErrInvalidSlug
 	}
-	if input.ChapterIndex < 1 {
+	chapterKey := utils.NormalizeChapterKey(input.ChapterIndex)
+	if !utils.ValidChapterKey(chapterKey) {
 		return utils.ErrInvalidChapter
 	}
 
@@ -389,7 +425,7 @@ func (s *ingestService) UpsertPages(input IngestPagesInput) error {
 	if err != nil {
 		return err
 	}
-	chapter, err := s.chapterRepo.FindByMangaIDAndIndex(manga.ID, input.ChapterIndex)
+	chapter, err := s.chapterRepo.FindByMangaIDAndKey(manga.ID, chapterKey, utils.ChapterStorageIndex(chapterKey))
 	if err != nil {
 		return err
 	}

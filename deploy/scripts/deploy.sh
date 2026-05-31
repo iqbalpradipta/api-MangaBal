@@ -43,6 +43,13 @@ chmod 600 .env.production || true
 
 echo "Building and starting Manga API..."
 docker compose build --pull manga-api
+
+legacy_project="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' manga-api 2>/dev/null || true)"
+if [ -n "$legacy_project" ] && [ "$legacy_project" != "api-mangabal" ]; then
+  echo "Removing legacy manga-api container from compose project: $legacy_project"
+  docker rm -f manga-api
+fi
+
 docker compose up -d --force-recreate --remove-orphans
 
 echo "Waiting for service health..."

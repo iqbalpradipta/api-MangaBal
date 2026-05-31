@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"net/http"
-	"strconv"
 
 	"scrapingmanga/backend/helpers"
 	"scrapingmanga/backend/services"
@@ -29,12 +28,7 @@ func (cc *ChapterController) ListByMangaSlug(c echo.Context) error {
 }
 
 func (cc *ChapterController) GetByMangaSlugAndIndex(c echo.Context) error {
-	chapterIndex, err := strconv.Atoi(c.Param("chapter"))
-	if err != nil {
-		return helpers.HandleError(c, utils.ErrInvalidChapter)
-	}
-
-	result, err := cc.chapterService.GetByMangaSlugAndIndex(c.Param("slug"), chapterIndex)
+	result, err := cc.chapterService.GetByMangaSlugAndKey(c.Param("slug"), c.Param("chapter"))
 	if err != nil {
 		return helpers.HandleError(c, err)
 	}

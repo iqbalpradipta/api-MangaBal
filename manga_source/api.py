@@ -44,7 +44,7 @@ class MangaSourceAPI:
         """List chapters for a series by its numeric ID."""
         return self._get(f"/series/{series_id}/chapters", {"page": page})
 
-    def get_chapter(self, series_slug: str, chapter_index: int) -> dict:
+    def get_chapter(self, series_slug: str, chapter_index: int | str) -> dict:
         """
         Get a single chapter with all page images.
 
@@ -52,8 +52,8 @@ class MangaSourceAPI:
         ----------
         series_slug : str
             The series slug (e.g. 'mumumu').
-        chapter_index : int
-            The chapter number / index (e.g. 1).
+        chapter_index : int or str
+            The chapter number / index (e.g. 1, '4.2').
         """
         return self._get(f"/series/{series_slug}/chapters/{chapter_index}")
 
