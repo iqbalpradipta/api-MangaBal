@@ -122,6 +122,12 @@ func (s *IngestWorkerService) commandArgs(job *model.IngestJob) []string {
 	if job.Type == model.IngestTypeChapter {
 		args = append(args, "--chapter", strconv.Itoa(job.TargetChapter))
 	}
+	if job.Force {
+		args = append(args, "--force")
+	}
+	if job.MissingOnly {
+		args = append(args, "--missing-only")
+	}
 	if s.cfg.MaxSeries != "" {
 		args = append(args, "--max-series", s.cfg.MaxSeries)
 	}

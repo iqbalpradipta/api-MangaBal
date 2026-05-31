@@ -36,6 +36,8 @@ def build_parser(description: str) -> argparse.ArgumentParser:
     parser.add_argument("--balstorage-root", default="Manga")
     parser.add_argument("--max-series", type=int)
     parser.add_argument("--max-chapters", type=int)
+    parser.add_argument("--force", action="store_true", help="Re-upload and overwrite existing file metadata")
+    parser.add_argument("--missing-only", action="store_true", help="Only fill missing manga/chapter/page data")
     return parser
 
 
@@ -65,6 +67,15 @@ class MangaIngestor:
         resp = self.http.post(f"{self.api_base}{path}", json=payload or {}, timeout=60)
         resp.raise_for_status()
         return resp.json()
+
+    def get_api_data(self, path: str) -> dict[str, Any] | None:
+        resp = self.http.get(f"{self.api_base}{path}", timeout=60)
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        payload = resp.json()
+        data = payload.get("data")
+        return data if isinstance(data, dict) else None
 
     def progress(self, message: str, total_manga: int = 0, total_chapters: int = 0, total_pages: int = 0) -> None:
         self.post_internal(
@@ -106,9 +117,17 @@ class MangaIngestor:
             self._folder_id(self.root_folder),
         )
 
+        existing_manga = self.get_api_data(f"/manga/{slug}")
+        if self.args.missing_only and existing_manga and not self.args.force:
+            self.progress(f"checking missing chapters for {title}")
+
         details = self._series_details(series_id, fallback=data)
         genres = self._genre_names(details)
-        cover = self.upload_cover(details.get("coverImage") or data.get("coverImage"), manga_folder)
+        cover = self.upload_cover(
+            details.get("coverImage") or data.get("coverImage"),
+            manga_folder,
+            existing_manga,
+        )
 
         self.post_internal(
             "/internal/ingest/manga",
@@ -161,6 +180,13 @@ class MangaIngestor:
 
         chapter_payload = self.api.get_chapter(manga_slug, chapter_index)
         images = chapter_payload["data"]["data"].get("images", [])
+        existing_chapter = self.get_api_data(f"/manga/{manga_slug}/chapters/{chapter_index}")
+        existing_pages = self.existing_pages_by_number(existing_chapter)
+
+        if self.args.missing_only and not self.args.force and self.chapter_is_complete(existing_chapter, len(images)):
+            self.processed_chapters += 1
+            self.progress(f"skipped complete {manga_title} chapter {chapter_index}", total_pages=self.processed_pages)
+            return
 
         self.post_internal(
             "/internal/ingest/chapters",
@@ -184,6 +210,12 @@ class MangaIngestor:
         with tempfile.TemporaryDirectory(prefix="manga_ingest_") as tmp:
             tmp_dir = Path(tmp)
             for page_number, image_url in enumerate(images, 1):
+                existing_page = existing_pages.get(page_number)
+                if not self.args.force and self.page_is_uploaded(existing_page):
+                    page_payload.append(existing_page)
+                    self.processed_pages += 1
+                    continue
+
                 image_path = self.download_image(image_url, tmp_dir, page_number)
                 upload = self.storage.upload_file(self._folder_id(chapter_folder), image_path)
                 file_id = file_id_from_upload(upload)
@@ -225,7 +257,23 @@ class MangaIngestor:
         target.write_bytes(resp.content)
         return target
 
-    def upload_cover(self, url: str | None, manga_folder: dict[str, Any]) -> dict[str, str]:
+    def upload_cover(
+        self,
+        url: str | None,
+        manga_folder: dict[str, Any],
+        existing_manga: dict[str, Any] | None = None,
+    ) -> dict[str, str]:
+        if not self.args.force and existing_manga:
+            file_id = existing_manga.get("cover_file_id")
+            preview_url = existing_manga.get("cover_preview_url")
+            thumbnail_url = existing_manga.get("cover_thumbnail_url")
+            if file_id and preview_url:
+                return {
+                    "file_id": file_id,
+                    "preview_url": preview_url,
+                    "thumbnail_url": thumbnail_url or "",
+                }
+
         if not url:
             return {}
 
@@ -275,6 +323,47 @@ class MangaIngestor:
         if not folder_id:
             raise RuntimeError(f"folder payload has no id: {folder}")
         return str(folder_id)
+
+    @staticmethod
+    def existing_pages_by_number(chapter: dict[str, Any] | None) -> dict[int, dict[str, Any]]:
+        if not chapter:
+            return {}
+        pages = chapter.get("pages")
+        if not isinstance(pages, list):
+            return {}
+
+        result = {}
+        for page in pages:
+            try:
+                page_number = int(page.get("page_number"))
+            except Exception:
+                continue
+            result[page_number] = {
+                "page_number": page_number,
+                "source_image_url": page.get("source_image_url") or "",
+                "balstorage_file_id": page.get("balstorage_file_id") or "",
+                "balstorage_folder_id": page.get("balstorage_folder_id") or "",
+                "preview_url": page.get("preview_url") or "",
+                "download_url": page.get("download_url") or "",
+                "thumbnail_url": page.get("thumbnail_url") or "",
+                "mime_type": page.get("mime_type") or "",
+                "size": int(page.get("size") or 0),
+            }
+        return result
+
+    @staticmethod
+    def page_is_uploaded(page: dict[str, Any] | None) -> bool:
+        if not page:
+            return False
+        return bool(page.get("balstorage_file_id") and page.get("preview_url"))
+
+    @classmethod
+    def chapter_is_complete(cls, chapter: dict[str, Any] | None, expected_pages: int) -> bool:
+        if not chapter or expected_pages < 1:
+            return False
+        pages = cls.existing_pages_by_number(chapter)
+        uploaded = sum(1 for page in pages.values() if cls.page_is_uploaded(page))
+        return uploaded >= expected_pages
 
     @staticmethod
     def mime_for(path: Path) -> str:

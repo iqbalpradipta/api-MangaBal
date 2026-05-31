@@ -8,13 +8,22 @@ import (
 	"scrapingmanga/backend/utils"
 )
 
+type StartAllIngestInput struct {
+	Force       bool `json:"force"`
+	MissingOnly bool `json:"missing_only"`
+}
+
 type StartSeriesIngestInput struct {
-	Slug string `json:"slug"`
+	Slug        string `json:"slug"`
+	Force       bool   `json:"force"`
+	MissingOnly bool   `json:"missing_only"`
 }
 
 type StartChapterIngestInput struct {
-	Slug    string `json:"slug"`
-	Chapter int    `json:"chapter"`
+	Slug        string `json:"slug"`
+	Chapter     int    `json:"chapter"`
+	Force       bool   `json:"force"`
+	MissingOnly bool   `json:"missing_only"`
 }
 
 type IngestProgressInput struct {
@@ -96,7 +105,7 @@ type IngestJobListResult struct {
 }
 
 type IngestService interface {
-	StartAll() (*model.IngestJob, error)
+	StartAll(input StartAllIngestInput) (*model.IngestJob, error)
 	StartSeries(input StartSeriesIngestInput) (*model.IngestJob, error)
 	StartChapter(input StartChapterIngestInput) (*model.IngestJob, error)
 	ListJobs(page, limit int) (*IngestJobListResult, error)
@@ -134,7 +143,7 @@ func NewIngestService(
 	}
 }
 
-func (s *ingestService) StartAll() (*model.IngestJob, error) {
+func (s *ingestService) StartAll(input StartAllIngestInput) (*model.IngestJob, error) {
 	active, err := s.jobRepo.FindActiveByType(model.IngestTypeAll)
 	if err != nil {
 		return nil, err
@@ -144,9 +153,11 @@ func (s *ingestService) StartAll() (*model.IngestJob, error) {
 	}
 
 	job := &model.IngestJob{
-		Type:    model.IngestTypeAll,
-		Status:  model.IngestStatusQueued,
-		Message: "waiting for worker",
+		Type:        model.IngestTypeAll,
+		Status:      model.IngestStatusQueued,
+		Force:       input.Force,
+		MissingOnly: input.MissingOnly,
+		Message:     "waiting for worker",
 	}
 	return job, s.jobRepo.Create(job)
 }
@@ -157,10 +168,12 @@ func (s *ingestService) StartSeries(input StartSeriesIngestInput) (*model.Ingest
 	}
 
 	job := &model.IngestJob{
-		Type:       model.IngestTypeSeries,
-		Status:     model.IngestStatusQueued,
-		TargetSlug: input.Slug,
-		Message:    "waiting for worker",
+		Type:        model.IngestTypeSeries,
+		Status:      model.IngestStatusQueued,
+		TargetSlug:  input.Slug,
+		Force:       input.Force,
+		MissingOnly: input.MissingOnly,
+		Message:     "waiting for worker",
 	}
 	return job, s.jobRepo.Create(job)
 }
@@ -178,6 +191,8 @@ func (s *ingestService) StartChapter(input StartChapterIngestInput) (*model.Inge
 		Status:        model.IngestStatusQueued,
 		TargetSlug:    input.Slug,
 		TargetChapter: input.Chapter,
+		Force:         input.Force,
+		MissingOnly:   input.MissingOnly,
 		Message:       "waiting for worker",
 	}
 	return job, s.jobRepo.Create(job)

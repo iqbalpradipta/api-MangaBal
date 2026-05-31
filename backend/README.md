@@ -82,8 +82,16 @@ Invoke-RestMethod `
   -Method Post `
   -Headers @{ "X-Admin-Token" = "<ADMIN_TOKEN>" } `
   -ContentType "application/json" `
-  -Body '{"slug":"mumumu","chapter":1}' `
+  -Body '{"slug":"mumumu","chapter":1,"missing_only":true,"force":false}' `
   http://localhost:8001/api/v1/admin/ingest/chapter
+```
+
+Ingest modes:
+
+```text
+default: skip page/cover uploads that already have BalStorage metadata
+missing_only=true: skip complete chapters and only fill missing data
+force=true: re-upload and overwrite file metadata
 ```
 
 After the job finishes, read the data:

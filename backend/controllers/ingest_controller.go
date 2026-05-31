@@ -19,7 +19,10 @@ func NewIngestController(ingestService services.IngestService) *IngestController
 }
 
 func (ic *IngestController) StartAll(c echo.Context) error {
-	job, err := ic.ingestService.StartAll()
+	var input services.StartAllIngestInput
+	_ = c.Bind(&input)
+
+	job, err := ic.ingestService.StartAll(input)
 	if err != nil {
 		return helpers.HandleError(c, err)
 	}
