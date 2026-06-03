@@ -64,11 +64,16 @@ Important values:
 ```env
 DB_PASS=
 DB_NAME=db_manga
+REDIS_ENABLED=true
+REDIS_ADDR=host.docker.internal:6379
 ADMIN_TOKEN=
 INGEST_INTERNAL_TOKEN=
 BALSTORAGE_EMAIL=
 BALSTORAGE_PASSWORD=
 ```
+
+Redis is used for public GET response cache. This deploy assumes Redis already runs elsewhere, so `deploy/docker-compose.yml` does not create a Redis container.
+If Redis runs on the Docker host and exposes port `6379`, use `REDIS_ADDR=host.docker.internal:6379`.
 
 ## Jenkins Job
 

@@ -24,12 +24,25 @@ func main() {
 		log.Println("no .env file found, using system env vars")
 	}
 
+	appCtx := context.Background()
+
 	db := config.InitDB()
 	migration.AutoMigrate(db)
 
+	redisCfg := config.LoadRedisConfig()
+	redisClient := config.InitRedis(appCtx, redisCfg)
+	if redisClient != nil {
+		defer func() {
+			if err := redisClient.Close(); err != nil {
+				log.Printf("failed to close redis client: %v", err)
+			}
+		}()
+	}
+	cacheSvc := services.NewRedisCacheService(redisClient, redisCfg.PublicCacheTTL, redisCfg.Enabled)
+
 	ingestCfg := config.LoadIngestConfig()
 	ingestJobRepo := repository.NewIngestJobRepository(db)
-	go services.NewIngestWorkerService(ingestJobRepo, ingestCfg).Start(context.Background())
+	go services.NewIngestWorkerService(ingestJobRepo, ingestCfg).Start(appCtx)
 
 	e := echo.New()
 	e.HideBanner = true
@@ -57,7 +70,7 @@ func main() {
 		},
 	}))
 
-	routes.Register(e, db)
+	routes.Register(e, db, cacheSvc)
 	e.File("/swagger", "docs/index.html")
 	e.Static("/swagger", "docs")
 

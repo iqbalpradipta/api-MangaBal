@@ -12,10 +12,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func Register(e *echo.Echo, db *gorm.DB) {
+func Register(e *echo.Echo, db *gorm.DB, cache services.CacheService) {
 	api := e.Group("/api/v1")
 
-	healthController := controllers.NewHealthController(db)
+	healthController := controllers.NewHealthController(db, cache)
 	api.GET("/health", healthController.Check)
 
 	mangaRepo := repository.NewMangaRepository(db)
@@ -32,14 +32,15 @@ func Register(e *echo.Echo, db *gorm.DB) {
 	mangaController := controllers.NewMangaController(mangaSvc)
 	chapterController := controllers.NewChapterController(chapterSvc)
 	genreController := controllers.NewGenreController(genreSvc)
-	ingestController := controllers.NewIngestController(ingestSvc)
+	ingestController := controllers.NewIngestController(ingestSvc, cache)
 
-	api.GET("/manga", mangaController.List)
-	api.GET("/manga/search", mangaController.Search)
-	api.GET("/manga/:slug", mangaController.GetBySlug)
-	api.GET("/manga/:slug/chapters", chapterController.ListByMangaSlug)
-	api.GET("/manga/:slug/chapters/:chapter", chapterController.GetByMangaSlugAndIndex)
-	api.GET("/genres", genreController.List)
+	publicCache := middlewares.ResponseCache(cache)
+	api.GET("/manga", mangaController.List, publicCache)
+	api.GET("/manga/search", mangaController.Search, publicCache)
+	api.GET("/manga/:slug", mangaController.GetBySlug, publicCache)
+	api.GET("/manga/:slug/chapters", chapterController.ListByMangaSlug, publicCache)
+	api.GET("/manga/:slug/chapters/:chapter", chapterController.GetByMangaSlugAndIndex, publicCache)
+	api.GET("/genres", genreController.List, publicCache)
 
 	admin := api.Group("/admin")
 	admin.Use(middlewares.AdminToken(utils.GetEnv("ADMIN_TOKEN", "")))

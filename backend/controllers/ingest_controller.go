@@ -12,10 +12,11 @@ import (
 
 type IngestController struct {
 	ingestService services.IngestService
+	cache         services.CacheService
 }
 
-func NewIngestController(ingestService services.IngestService) *IngestController {
-	return &IngestController{ingestService: ingestService}
+func NewIngestController(ingestService services.IngestService, cache services.CacheService) *IngestController {
+	return &IngestController{ingestService: ingestService, cache: cache}
 }
 
 func (ic *IngestController) StartAll(c echo.Context) error {
@@ -125,6 +126,7 @@ func (ic *IngestController) UpsertManga(c echo.Context) error {
 	if err != nil {
 		return helpers.HandleError(c, err)
 	}
+	ic.clearPublicCache(c)
 	return helpers.JSON(c, http.StatusOK, true, "manga upserted", manga)
 }
 
@@ -137,6 +139,7 @@ func (ic *IngestController) UpsertChapters(c echo.Context) error {
 	if err := ic.ingestService.UpsertChapters(input); err != nil {
 		return helpers.HandleError(c, err)
 	}
+	ic.clearPublicCache(c)
 	return helpers.JSON(c, http.StatusOK, true, "chapters upserted", nil)
 }
 
@@ -149,5 +152,12 @@ func (ic *IngestController) UpsertPages(c echo.Context) error {
 	if err := ic.ingestService.UpsertPages(input); err != nil {
 		return helpers.HandleError(c, err)
 	}
+	ic.clearPublicCache(c)
 	return helpers.JSON(c, http.StatusOK, true, "pages upserted", nil)
+}
+
+func (ic *IngestController) clearPublicCache(c echo.Context) {
+	if ic.cache != nil && ic.cache.Enabled() {
+		ic.cache.ClearPublic(c.Request().Context())
+	}
 }
