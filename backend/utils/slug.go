@@ -6,7 +6,9 @@ import (
 	"strings"
 )
 
-var slugPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,199}$`)
+const maxSlugLength = 500
+
+var slugPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,` + strconv.Itoa(maxSlugLength-1) + `}$`)
 var chapterKeyPattern = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?$`)
 var slugReplacePattern = regexp.MustCompile(`[^a-z0-9]+`)
 
@@ -20,6 +22,9 @@ func Slugify(value string) string {
 	slug = strings.Trim(slug, "-")
 	if slug == "" {
 		return "unknown"
+	}
+	if len(slug) > maxSlugLength {
+		slug = strings.TrimRight(slug[:maxSlugLength], "-")
 	}
 	return slug
 }
