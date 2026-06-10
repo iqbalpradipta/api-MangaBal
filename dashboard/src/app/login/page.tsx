@@ -5,7 +5,7 @@ import { LockKeyhole, ArrowRight, ShieldCheck } from 'lucide-react';
 export default async function LoginPage() {
   // Check if already authenticated
   if (await isAuthenticated()) {
-    redirect('/dashboard');
+    redirect('/home');
   }
 
   async function handleLogin(formData: FormData) {
@@ -19,7 +19,7 @@ export default async function LoginPage() {
     }
 
     await setSession(password);
-    redirect('/dashboard');
+    redirect('/home');
   }
 
   return (
