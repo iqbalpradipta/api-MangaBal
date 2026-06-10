@@ -10,6 +10,9 @@ deploy/.env.production
 deploy/.env.production.*
 !deploy/.env.production.example
 
+# Backend env example - ignore so no secrets in git
+backend/.env.example
+
 # Python
 __pycache__/
 *.py[cod]

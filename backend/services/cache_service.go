@@ -4,10 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"log"
-	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
 const publicCachePrefix = "manga-api:public:"
@@ -22,86 +18,37 @@ type CacheService interface {
 	Ping(ctx context.Context) error
 }
 
-type redisCacheService struct {
-	client     *redis.Client
-	ttl        time.Duration
-	configured bool
+type noOpCacheService struct{}
+
+func NewNoOpCacheService() CacheService {
+	return &noOpCacheService{}
 }
 
-func NewRedisCacheService(client *redis.Client, ttl time.Duration, configured bool) CacheService {
-	return &redisCacheService{
-		client:     client,
-		ttl:        ttl,
-		configured: configured,
-	}
+func (s *noOpCacheService) Configured() bool {
+	return false
 }
 
-func (s *redisCacheService) Configured() bool {
-	return s != nil && s.configured
+func (s *noOpCacheService) Enabled() bool {
+	return false
 }
 
-func (s *redisCacheService) Enabled() bool {
-	return s != nil && s.client != nil
-}
-
-func (s *redisCacheService) PublicKey(value string) string {
+func (s *noOpCacheService) PublicKey(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return publicCachePrefix + hex.EncodeToString(sum[:])
 }
 
-func (s *redisCacheService) GetBytes(ctx context.Context, key string) ([]byte, bool) {
-	if !s.Enabled() {
-		return nil, false
-	}
-
-	value, err := s.client.Get(ctx, key).Bytes()
-	if err == redis.Nil {
-		return nil, false
-	}
-	if err != nil {
-		log.Printf("redis cache get failed: %v", err)
-		return nil, false
-	}
-	return value, true
+func (s *noOpCacheService) GetBytes(ctx context.Context, key string) ([]byte, bool) {
+	return nil, false
 }
 
-func (s *redisCacheService) SetBytes(ctx context.Context, key string, value []byte) {
-	if !s.Enabled() || len(value) == 0 {
-		return
-	}
-	if err := s.client.Set(ctx, key, value, s.ttl).Err(); err != nil {
-		log.Printf("redis cache set failed: %v", err)
-	}
+func (s *noOpCacheService) SetBytes(ctx context.Context, key string, value []byte) {
+	// no-op
 }
 
-func (s *redisCacheService) ClearPublic(ctx context.Context) {
-	if !s.Enabled() {
-		return
-	}
-
-	var cursor uint64
-	for {
-		keys, nextCursor, err := s.client.Scan(ctx, cursor, publicCachePrefix+"*", 100).Result()
-		if err != nil {
-			log.Printf("redis public cache scan failed: %v", err)
-			return
-		}
-		if len(keys) > 0 {
-			if err := s.client.Del(ctx, keys...).Err(); err != nil {
-				log.Printf("redis public cache delete failed: %v", err)
-				return
-			}
-		}
-		if nextCursor == 0 {
-			return
-		}
-		cursor = nextCursor
-	}
+func (s *noOpCacheService) ClearPublic(ctx context.Context) {
+	// no-op
 }
 
-func (s *redisCacheService) Ping(ctx context.Context) error {
-	if !s.Enabled() {
-		return nil
-	}
-	return s.client.Ping(ctx).Err()
+func (s *noOpCacheService) Ping(ctx context.Context) error {
+	return nil
 }
