@@ -18,22 +18,13 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protect dashboard route
-  if (pathname.startsWith(DASHBOARD_PATH) && !isAuthenticated) {
+  if (pathname.startsWith(DASHBOARD_PATH) && pathname !== LOGIN_PATH && !isAuthenticated) {
     return NextResponse.redirect(new URL(LOGIN_PATH, request.url));
-  }
-
-  // Redirect root to dashboard or login
-  if (pathname === '/') {
-    if (isAuthenticated) {
-      return NextResponse.redirect(new URL(DASHBOARD_PATH, request.url));
-    } else {
-      return NextResponse.redirect(new URL(LOGIN_PATH, request.url));
-    }
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/', '/login', '/dashboard/:path*'],
+  matcher: ['/', '/login'],
 };
