@@ -42,6 +42,12 @@ ensure_secret "INGEST_INTERNAL_TOKEN"
 ensure_secret "DASHBOARD_PASSWORD"
 chmod 600 .env.production || true
 
+# Export secrets needed by docker compose build args
+set -a
+# shellcheck disable=SC1091
+source .env.production
+set +a
+
 echo "Building and starting services..."
 docker compose build --pull manga-api
 docker compose build --pull dashboard
@@ -50,6 +56,19 @@ legacy_project="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose
 if [ -n "$legacy_project" ] && [ "$legacy_project" != "api-mangabal" ]; then
   echo "Removing legacy manga-api container from compose project: $legacy_project"
   docker rm -f manga-api
+fi
+
+legacy_dashboard="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' manga-dashboard 2>/dev/null || true)"
+if [ -n "$legacy_dashboard" ] && [ "$legacy_dashboard" != "api-mangabal" ]; then
+  echo "Removing legacy manga-dashboard container from compose project: $legacy_dashboard"
+  docker rm -f manga-dashboard
+fi
+
+# Force-remove any container holding port 3000 that isn't ours
+port3000_container="$(docker ps -q --filter "publish=3000" | xargs -r docker inspect -f '{{.Name}}' 2>/dev/null | tr -d '/' || true)"
+if [ -n "$port3000_container" ] && [ "$port3000_container" != "manga-dashboard" ]; then
+  echo "Removing container $port3000_container blocking port 3000"
+  docker rm -f "$port3000_container"
 fi
 
 docker compose up -d --force-recreate --remove-orphans
@@ -73,7 +92,7 @@ fi
 
 echo ""
 echo "=== Dashboard ==="
-if curl -sf -o /dev/null http://localhost:3001; then
+if curl -sf -o /dev/null http://localhost:3000; then
   echo "Dashboard [OK]"
 else
   echo "Dashboard [FAIL]"
