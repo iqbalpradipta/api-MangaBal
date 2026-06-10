@@ -22,6 +22,24 @@ services:
       retries: 3
       start_period: 15s
 
+  dashboard:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.dashboard
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://manga.iqbalpradipta.my.id/api/v1}
+        NEXT_PUBLIC_ADMIN_TOKEN: ${ADMIN_TOKEN}
+    container_name: manga-dashboard
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks:
+      - manga-network
+    depends_on:
+      - manga-api
+
 networks:
   manga-network:
     driver: bridge

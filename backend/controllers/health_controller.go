@@ -1,9 +1,7 @@
 package controllers
 
 import (
-	"context"
 	"net/http"
-	"time"
 
 	"scrapingmanga/backend/helpers"
 	"scrapingmanga/backend/services"
@@ -32,21 +30,6 @@ func (h *HealthController) Check(c echo.Context) error {
 
 	data := echo.Map{
 		"database": "ok",
-		"redis":    "disabled",
-	}
-	if h.cache != nil && h.cache.Configured() {
-		if !h.cache.Enabled() {
-			data["redis"] = "unavailable"
-			return helpers.JSON(c, http.StatusOK, true, "service healthy", data)
-		}
-
-		pingCtx, cancel := context.WithTimeout(c.Request().Context(), 2*time.Second)
-		defer cancel()
-		if err := h.cache.Ping(pingCtx); err != nil {
-			data["redis"] = "unavailable"
-		} else {
-			data["redis"] = "ok"
-		}
 	}
 
 	return helpers.JSON(c, http.StatusOK, true, "service healthy", data)
