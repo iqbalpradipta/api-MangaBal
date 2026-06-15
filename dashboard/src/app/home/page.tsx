@@ -30,7 +30,8 @@ export default function DashboardPage() {
     try {
       const result = await api.getJobs();
       if (result.data) {
-        setJobs(result.data);
+        const jobsList = (result.data as any).data || result.data;
+        setJobs(Array.isArray(jobsList) ? jobsList : []);
       }
     } catch (error) {
       console.error('Failed to load jobs:', error);
