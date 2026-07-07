@@ -77,14 +77,15 @@ export default function DashboardPage() {
 
   const handleIngestSeries = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     const slug = formData.get('slug') as string;
-    
+
     try {
       const result = await api.ingestSeries(slug);
       showResponse('ingestSeries', JSON.stringify(result, null, 2), result.success);
       setTimeout(() => loadJobs(true), 1000);
-      e.currentTarget.reset();
+      form.reset();
     } catch (error) {
       showResponse('ingestSeries', `Error: ${error}`, false);
     }
@@ -92,15 +93,16 @@ export default function DashboardPage() {
 
   const handleIngestChapter = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     const slug = formData.get('slug') as string;
     const chapterIndex = parseInt(formData.get('chapter_index') as string);
-    
+
     try {
       const result = await api.ingestChapter(slug, chapterIndex);
       showResponse('ingestChapter', JSON.stringify(result, null, 2), result.success);
       setTimeout(() => loadJobs(true), 1000);
-      e.currentTarget.reset();
+      form.reset();
     } catch (error) {
       showResponse('ingestChapter', `Error: ${error}`, false);
     }
