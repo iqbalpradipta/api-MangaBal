@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, type IngestJob } from '@/lib/api';
-import { 
-  LogOut, 
-  Library, 
-  BookOpen, 
-  FileText, 
+import {
+  LogOut,
+  Library,
+  BookOpen,
+  FileText,
   Activity,
   RefreshCw,
   Terminal,
@@ -15,15 +15,19 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
-  LayoutDashboard
+  LayoutDashboard,
+  Upload,
 } from 'lucide-react';
+import UploadWizard from '@/components/upload-wizard';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'ingest' | 'upload'>('ingest');
   const [jobs, setJobs] = useState<IngestJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [responses, setResponses] = useState<Record<string, { message: string; success: boolean }>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
+
 
   const loadJobs = async (manual = false) => {
     if (manual) setIsRefreshing(true);
@@ -139,7 +143,40 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 pt-10">
-        
+
+        {/* Tab Nav */}
+        <div className="flex gap-2 mb-8 border-b border-slate-800 pb-0">
+          <button
+            onClick={() => setActiveTab('ingest')}
+            className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+              activeTab === 'ingest'
+                ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Activity className="w-4 h-4" /> Ingest
+          </button>
+          <button
+            onClick={() => setActiveTab('upload')}
+            className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+              activeTab === 'upload'
+                ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Upload className="w-4 h-4" /> Upload Manual
+          </button>
+        </div>
+
+        {/* Upload Manual Tab */}
+        {activeTab === 'upload' && (
+          <div className="animate-fade-in-up">
+            <UploadWizard />
+          </div>
+        )}
+
+        {/* Ingest Tab */}
+        {activeTab === 'ingest' && <>
         <div className="mb-10 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           <h2 className="text-2xl font-[family-name:var(--font-display)] font-bold text-slate-100 mb-2">Ingestion Operations</h2>
           <p className="text-slate-400 text-sm">Trigger manual data synchronization from external sources to the database.</p>
@@ -259,6 +296,7 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+        </>}
       </main>
     </div>
   );

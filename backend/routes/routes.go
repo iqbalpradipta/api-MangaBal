@@ -28,11 +28,13 @@ func Register(e *echo.Echo, db *gorm.DB, cache services.CacheService) {
 	chapterSvc := services.NewChapterService(mangaRepo, chapterRepo)
 	genreSvc := services.NewGenreService(genreRepo)
 	ingestSvc := services.NewIngestService(mangaRepo, chapterRepo, pageRepo, genreRepo, ingestJobRepo)
+	mangaAdminSvc := services.NewMangaAdminService(mangaRepo, chapterRepo, pageRepo, genreRepo, config.LoadBalStorageConfig())
 
 	mangaController := controllers.NewMangaController(mangaSvc)
 	chapterController := controllers.NewChapterController(chapterSvc)
 	genreController := controllers.NewGenreController(genreSvc)
 	ingestController := controllers.NewIngestController(ingestSvc, cache)
+	mangaAdminController := controllers.NewMangaAdminController(mangaAdminSvc)
 
 	publicCache := middlewares.ResponseCache(cache)
 	api.GET("/manga", mangaController.List, publicCache)
@@ -44,6 +46,13 @@ func Register(e *echo.Echo, db *gorm.DB, cache services.CacheService) {
 
 	admin := api.Group("/admin")
 	admin.Use(middlewares.AdminToken(utils.GetEnv("ADMIN_TOKEN", "")))
+	admin.POST("/manga", mangaAdminController.CreateManga)
+	admin.PUT("/manga/:slug", mangaAdminController.UpdateManga)
+	admin.DELETE("/manga/:slug", mangaAdminController.DeleteManga)
+	admin.POST("/manga/:slug/chapters", mangaAdminController.CreateChapter)
+	admin.DELETE("/manga/:slug/chapters/:chapter", mangaAdminController.DeleteChapter)
+	admin.POST("/manga/:slug/chapters/:chapter/pages", mangaAdminController.UploadPages)
+
 	admin.POST("/ingest/all", ingestController.StartAll, middlewares.RateLimitByIP(3, 1))
 	admin.POST("/ingest/series", ingestController.StartSeries, middlewares.RateLimitByIP(10, 3))
 	admin.POST("/ingest/chapter", ingestController.StartChapter, middlewares.RateLimitByIP(20, 5))

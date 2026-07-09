@@ -9,7 +9,7 @@ import (
 
 type Manga struct {
 	ID                 string         `json:"id" gorm:"type:uuid;primaryKey"`
-	UpstreamID         int            `json:"upstream_id" gorm:"index"`
+	UpstreamID         *int           `json:"upstream_id" gorm:"index"`
 	Slug               string         `json:"slug" gorm:"uniqueIndex;not null"`
 	Title              string         `json:"title" gorm:"not null;index"`
 	NativeTitle        string         `json:"native_title"`

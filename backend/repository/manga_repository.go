@@ -14,6 +14,7 @@ type MangaRepository interface {
 	Search(query string, page, limit int) ([]model.Manga, int64, error)
 	FindBySlug(slug string) (*model.Manga, error)
 	Upsert(manga *model.Manga) error
+	Delete(id string) error
 }
 
 type mangaRepository struct {
@@ -62,6 +63,10 @@ func (r *mangaRepository) FindBySlug(slug string) (*model.Manga, error) {
 		return nil, err
 	}
 	return &manga, nil
+}
+
+func (r *mangaRepository) Delete(id string) error {
+	return r.db.Delete(&model.Manga{}, "id = ?", id).Error
 }
 
 func (r *mangaRepository) Upsert(manga *model.Manga) error {

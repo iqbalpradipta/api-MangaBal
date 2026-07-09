@@ -11,6 +11,7 @@ type ChapterRepository interface {
 	ListByMangaID(mangaID string, page, limit int) ([]model.Chapter, int64, error)
 	FindByMangaIDAndKey(mangaID string, chapterKey string, storageIndex int) (*model.Chapter, error)
 	Upsert(chapter *model.Chapter) error
+	Delete(id string) error
 }
 
 type chapterRepository struct {
@@ -53,6 +54,10 @@ func (r *chapterRepository) FindByMangaIDAndKey(mangaID string, chapterKey strin
 		return nil, err
 	}
 	return &chapter, nil
+}
+
+func (r *chapterRepository) Delete(id string) error {
+	return r.db.Delete(&model.Chapter{}, "id = ?", id).Error
 }
 
 func (r *chapterRepository) Upsert(chapter *model.Chapter) error {

@@ -10,7 +10,7 @@ export async function setSession(password: string) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     maxAge: SESSION_MAX_AGE,
-    path: '/dashboard',
+    path: '/',
   });
 }
 

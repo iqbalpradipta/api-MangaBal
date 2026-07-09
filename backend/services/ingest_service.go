@@ -70,7 +70,7 @@ type IngestProgressInput struct {
 
 type IngestMangaInput struct {
 	JobID              string   `json:"job_id"`
-	UpstreamID         int      `json:"upstream_id"`
+	UpstreamID         *int     `json:"upstream_id"`
 	Slug               string   `json:"slug"`
 	Title              string   `json:"title"`
 	NativeTitle        string   `json:"native_title"`
