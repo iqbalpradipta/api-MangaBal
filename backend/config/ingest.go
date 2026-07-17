@@ -15,6 +15,7 @@ type IngestConfig struct {
 	APIBaseURL         string
 	MaxParallelJobs    int
 	PollInterval       time.Duration
+	JobTimeout         time.Duration
 	MaxSeries          string
 	MaxChapters        string
 	BalStorageBaseURL  string
@@ -34,6 +35,11 @@ func LoadIngestConfig() IngestConfig {
 		pollSeconds = 5
 	}
 
+	timeoutMinutes, _ := strconv.Atoi(utils.GetEnv("INGEST_JOB_TIMEOUT_MINUTES", "120"))
+	if timeoutMinutes < 1 {
+		timeoutMinutes = 120
+	}
+
 	return IngestConfig{
 		PythonBin:          utils.GetEnv("PYTHON_BIN", "py"),
 		AllScript:          utils.GetEnv("INGEST_ALL_SCRIPT", "../scripts/ingest_all.py"),
@@ -42,6 +48,7 @@ func LoadIngestConfig() IngestConfig {
 		APIBaseURL:         utils.GetEnv("INGEST_API_BASE_URL", "http://localhost:8001/api/v1"),
 		MaxParallelJobs:    maxParallel,
 		PollInterval:       time.Duration(pollSeconds) * time.Second,
+		JobTimeout:         time.Duration(timeoutMinutes) * time.Minute,
 		MaxSeries:          utils.GetEnv("INGEST_MAX_SERIES", ""),
 		MaxChapters:        utils.GetEnv("INGEST_MAX_CHAPTERS", ""),
 		BalStorageBaseURL:  utils.GetEnv("BALSTORAGE_BASE_URL", "http://localhost:8000/api/v1"),

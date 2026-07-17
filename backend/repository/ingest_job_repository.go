@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"scrapingmanga/backend/model"
 
 	"gorm.io/gorm"
@@ -11,6 +13,7 @@ type IngestJobRepository interface {
 	FindByID(id string) (*model.IngestJob, error)
 	FindQueued(limit int) ([]model.IngestJob, error)
 	FindActiveByType(jobType string) ([]model.IngestJob, error)
+	FindStuckRunning(olderThan time.Time) ([]model.IngestJob, error)
 	List(page, limit int) ([]model.IngestJob, int64, error)
 	Update(job *model.IngestJob) error
 }
@@ -51,6 +54,13 @@ func (r *ingestJobRepository) FindActiveByType(jobType string) ([]model.IngestJo
 		model.IngestStatusQueued,
 		model.IngestStatusRunning,
 	}).Find(&jobs).Error
+	return jobs, err
+}
+
+func (r *ingestJobRepository) FindStuckRunning(olderThan time.Time) ([]model.IngestJob, error) {
+	var jobs []model.IngestJob
+	err := r.db.Where("status = ? AND started_at < ?", model.IngestStatusRunning, olderThan).
+		Find(&jobs).Error
 	return jobs, err
 }
 

@@ -40,6 +40,18 @@ ensure_secret() {
 ensure_secret "ADMIN_TOKEN"
 ensure_secret "INGEST_INTERNAL_TOKEN"
 ensure_secret "DASHBOARD_PASSWORD"
+
+# Ensure non-secret keys exist with defaults if missing
+ensure_default() {
+  local key="$1"
+  local default="$2"
+  if ! grep -qE "^${key}=" .env.production; then
+    printf '\n%s=%s\n' "$key" "$default" >> .env.production
+    echo "Added default ${key}=${default} to .env.production"
+  fi
+}
+
+ensure_default "INGEST_JOB_TIMEOUT_MINUTES" "120"
 chmod 600 .env.production || true
 
 # Export secrets needed by docker compose build args

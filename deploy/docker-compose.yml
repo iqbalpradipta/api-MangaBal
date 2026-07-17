@@ -35,6 +35,8 @@ services:
       - .env.production
     ports:
       - "127.0.0.1:3001:3001"
+    volumes:
+      - dashboard-data:/data
     networks:
       - manga-network
     depends_on:
@@ -43,3 +45,6 @@ services:
 networks:
   manga-network:
     driver: bridge
+
+volumes:
+  dashboard-data:

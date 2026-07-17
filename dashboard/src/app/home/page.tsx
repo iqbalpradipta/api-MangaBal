@@ -17,12 +17,14 @@ import {
   Loader2,
   LayoutDashboard,
   Upload,
+  Settings,
 } from 'lucide-react';
 import UploadWizard from '@/components/upload-wizard';
+import ChangePasswordForm from '@/components/change-password-form';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'ingest' | 'upload'>('ingest');
+  const [activeTab, setActiveTab] = useState<'ingest' | 'upload' | 'settings'>('ingest');
   const [jobs, setJobs] = useState<IngestJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [responses, setResponses] = useState<Record<string, { message: string; success: boolean }>>({});
@@ -68,10 +70,14 @@ export default function DashboardPage() {
     }, 8000);
   };
 
-  const handleIngestAll = async (e: React.FormEvent) => {
+  const handleIngestAll = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const fd = new FormData(e.currentTarget);
     try {
-      const result = await api.ingestAll();
+      const result = await api.ingestAll({
+        force: fd.get('force') === 'on',
+        missing_only: fd.get('missing_only') === 'on',
+      });
       showResponse('ingestAll', JSON.stringify(result, null, 2), result.success);
       setTimeout(() => loadJobs(true), 1000);
     } catch (error) {
@@ -82,11 +88,14 @@ export default function DashboardPage() {
   const handleIngestSeries = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
-    const formData = new FormData(form);
-    const slug = formData.get('slug') as string;
+    const fd = new FormData(form);
+    const slug = fd.get('slug') as string;
 
     try {
-      const result = await api.ingestSeries(slug);
+      const result = await api.ingestSeries(slug, {
+        force: fd.get('force') === 'on',
+        missing_only: fd.get('missing_only') === 'on',
+      });
       showResponse('ingestSeries', JSON.stringify(result, null, 2), result.success);
       setTimeout(() => loadJobs(true), 1000);
       form.reset();
@@ -98,12 +107,15 @@ export default function DashboardPage() {
   const handleIngestChapter = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
-    const formData = new FormData(form);
-    const slug = formData.get('slug') as string;
-    const chapterIndex = parseInt(formData.get('chapter_index') as string);
+    const fd = new FormData(form);
+    const slug = fd.get('slug') as string;
+    const chapterIndex = parseInt(fd.get('chapter_index') as string);
 
     try {
-      const result = await api.ingestChapter(slug, chapterIndex);
+      const result = await api.ingestChapter(slug, chapterIndex, {
+        force: fd.get('force') === 'on',
+        missing_only: fd.get('missing_only') === 'on',
+      });
       showResponse('ingestChapter', JSON.stringify(result, null, 2), result.success);
       setTimeout(() => loadJobs(true), 1000);
       form.reset();
@@ -166,12 +178,38 @@ export default function DashboardPage() {
           >
             <Upload className="w-4 h-4" /> Upload Manual
           </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+              activeTab === 'settings'
+                ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Settings className="w-4 h-4" /> Pengaturan
+          </button>
         </div>
 
         {/* Upload Manual Tab */}
         {activeTab === 'upload' && (
           <div className="animate-fade-in-up">
             <UploadWizard />
+          </div>
+        )}
+
+        {/* Pengaturan Tab */}
+        {activeTab === 'settings' && (
+          <div className="animate-fade-in-up">
+            <div className="mb-8">
+              <h2 className="text-2xl font-[family-name:var(--font-display)] font-bold text-slate-100 mb-1">Pengaturan</h2>
+              <p className="text-slate-400 text-sm">Kelola konfigurasi dashboard.</p>
+            </div>
+            <div className="glass-panel rounded-2xl p-6 sm:p-8 max-w-lg">
+              <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2 mb-6">
+                <Settings className="w-4 h-4 text-indigo-400" /> Ubah Password
+              </h3>
+              <ChangePasswordForm />
+            </div>
           </div>
         )}
 
@@ -192,7 +230,9 @@ export default function DashboardPage() {
             onSubmit={handleIngestAll}
             response={responses.ingestAll}
             delay="0.2s"
-          />
+          >
+            <IngestOptions />
+          </ActionCard>
 
           {/* Ingest Series Card */}
           <ActionCard
@@ -216,6 +256,7 @@ export default function DashboardPage() {
                 className="glass-input w-full px-4 py-2.5 rounded-xl text-sm"
               />
             </div>
+            <IngestOptions />
           </ActionCard>
 
           {/* Ingest Chapter Card */}
@@ -255,6 +296,7 @@ export default function DashboardPage() {
                 />
               </div>
             </div>
+            <IngestOptions />
           </ActionCard>
         </div>
 
@@ -310,6 +352,36 @@ interface ActionCardProps {
   response?: { message: string; success: boolean };
   children?: React.ReactNode;
   delay: string;
+}
+
+function IngestOptions() {
+  return (
+    <div className="mb-4 flex flex-col gap-2 p-3 bg-slate-900/50 border border-slate-700/50 rounded-xl">
+      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Opsi</p>
+      <label className="flex items-start gap-3 cursor-pointer group">
+        <input
+          type="checkbox"
+          name="force"
+          className="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-slate-900 cursor-pointer"
+        />
+        <div>
+          <span className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Force</span>
+          <p className="text-xs text-slate-500 mt-0.5">Paksa re-ingest meski data sudah ada</p>
+        </div>
+      </label>
+      <label className="flex items-start gap-3 cursor-pointer group">
+        <input
+          type="checkbox"
+          name="missing_only"
+          className="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-slate-900 cursor-pointer"
+        />
+        <div>
+          <span className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Missing Only</span>
+          <p className="text-xs text-slate-500 mt-0.5">Hanya proses data yang belum ada</p>
+        </div>
+      </label>
+    </div>
+  );
 }
 
 function ActionCard({ title, icon, description, onSubmit, response, children, delay }: ActionCardProps) {

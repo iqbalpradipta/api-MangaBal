@@ -86,19 +86,22 @@ async function apiRequest<T = any>(
 
 export const api = {
   // Ingest endpoints
-  ingestAll: () => 
-    apiRequest('/admin/ingest/all', { method: 'POST' }),
-  
-  ingestSeries: (slug: string) =>
+  ingestAll: (opts?: { force?: boolean; missing_only?: boolean }) =>
+    apiRequest('/admin/ingest/all', {
+      method: 'POST',
+      body: JSON.stringify(opts ?? {}),
+    }),
+
+  ingestSeries: (slug: string, opts?: { force?: boolean; missing_only?: boolean }) =>
     apiRequest('/admin/ingest/series', {
       method: 'POST',
-      body: JSON.stringify({ slug }),
+      body: JSON.stringify({ slug, ...opts }),
     }),
-  
-  ingestChapter: (slug: string, chapterIndex: number) =>
+
+  ingestChapter: (slug: string, chapterIndex: number, opts?: { force?: boolean; missing_only?: boolean }) =>
     apiRequest('/admin/ingest/chapter', {
       method: 'POST',
-      body: JSON.stringify({ slug, chapter_index: chapterIndex }),
+      body: JSON.stringify({ slug, chapter_index: chapterIndex, ...opts }),
     }),
   
   // Jobs endpoints

@@ -25,8 +25,15 @@ func NewIngestWorkerService(jobRepo repository.IngestJobRepository, cfg config.I
 }
 
 func (s *IngestWorkerService) Start(ctx context.Context) {
+	// Fix 1: recover jobs yang stuck running saat server restart
+	s.recoverStuckJobs()
+
 	ticker := time.NewTicker(s.cfg.PollInterval)
 	defer ticker.Stop()
+
+	// Fix 2: watchdog ticker — cek job stuck setiap 1 menit
+	watchdog := time.NewTicker(1 * time.Minute)
+	defer watchdog.Stop()
 
 	for {
 		select {
@@ -34,6 +41,55 @@ func (s *IngestWorkerService) Start(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.runOnce(ctx)
+		case <-watchdog.C:
+			s.killStuckJobs()
+		}
+	}
+}
+
+// recoverStuckJobs dipanggil saat startup — mark semua job 'running' jadi 'failed'
+// karena Python process pasti sudah mati saat server restart.
+func (s *IngestWorkerService) recoverStuckJobs() {
+	// pakai threshold 0 = semua job running tanpa batas waktu
+	jobs, err := s.jobRepo.FindStuckRunning(time.Now())
+	if err != nil {
+		log.Printf("recovery: failed to find stuck jobs: %v", err)
+		return
+	}
+	for i := range jobs {
+		job := &jobs[i]
+		now := time.Now()
+		job.Status = model.IngestStatusFailed
+		job.FinishedAt = &now
+		job.ErrorMessage = "job recovered after server restart — process was killed"
+		job.Message = "recovered: marked failed on startup"
+		if err := s.jobRepo.Update(job); err != nil {
+			log.Printf("recovery: failed to update job %s: %v", job.ID, err)
+		} else {
+			log.Printf("recovery: job %s marked failed (was stuck running)", job.ID)
+		}
+	}
+}
+
+// killStuckJobs dipanggil periodic — kill job running melebihi JobTimeout.
+func (s *IngestWorkerService) killStuckJobs() {
+	threshold := time.Now().Add(-s.cfg.JobTimeout)
+	jobs, err := s.jobRepo.FindStuckRunning(threshold)
+	if err != nil {
+		log.Printf("watchdog: failed to find stuck jobs: %v", err)
+		return
+	}
+	for i := range jobs {
+		job := &jobs[i]
+		now := time.Now()
+		job.Status = model.IngestStatusFailed
+		job.FinishedAt = &now
+		job.ErrorMessage = "job timed out — exceeded maximum allowed duration"
+		job.Message = "watchdog: marked failed due to timeout"
+		if err := s.jobRepo.Update(job); err != nil {
+			log.Printf("watchdog: failed to update job %s: %v", job.ID, err)
+		} else {
+			log.Printf("watchdog: job %s timed out after %v, marked failed", job.ID, s.cfg.JobTimeout)
 		}
 	}
 }
@@ -61,8 +117,13 @@ func (s *IngestWorkerService) runJob(ctx context.Context, job *model.IngestJob) 
 		return
 	}
 
+	// Fix 3: pakai job-scoped context dengan timeout, bukan parent ctx langsung
+	// supaya shutdown server tidak langsung kill job tanpa mark failed
+	jobCtx, cancel := context.WithTimeout(context.Background(), s.cfg.JobTimeout)
+	defer cancel()
+
 	args := s.commandArgs(job)
-	cmd := exec.CommandContext(ctx, s.cfg.PythonBin, args...)
+	cmd := exec.CommandContext(jobCtx, s.cfg.PythonBin, args...)
 	output, err := cmd.CombinedOutput()
 	if len(output) > 0 {
 		log.Printf("ingest job %s output: %s", job.ID, string(output))
@@ -75,15 +136,22 @@ func (s *IngestWorkerService) runJob(ctx context.Context, job *model.IngestJob) 
 	}
 
 	if err != nil {
-		finished := time.Now()
-		stored.Status = model.IngestStatusFailed
-		stored.FinishedAt = &finished
-		if stored.ErrorMessage == "" {
-			stored.ErrorMessage = err.Error()
-		}
-		stored.Message = "python ingest process failed"
-		if updateErr := s.jobRepo.Update(stored); updateErr != nil {
-			log.Printf("failed to mark ingest job failed: %v", updateErr)
+		// hanya update jika Python belum callback finish/fail sendiri
+		if stored.Status == model.IngestStatusRunning {
+			finished := time.Now()
+			stored.Status = model.IngestStatusFailed
+			stored.FinishedAt = &finished
+			if stored.ErrorMessage == "" {
+				stored.ErrorMessage = err.Error()
+			}
+			// bedakan timeout vs error lain
+			if jobCtx.Err() == context.DeadlineExceeded {
+				stored.ErrorMessage = "job timed out — python process killed after " + s.cfg.JobTimeout.String()
+			}
+			stored.Message = "python ingest process failed"
+			if updateErr := s.jobRepo.Update(stored); updateErr != nil {
+				log.Printf("failed to mark ingest job failed: %v", updateErr)
+			}
 		}
 		return
 	}
