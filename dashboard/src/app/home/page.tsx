@@ -54,9 +54,8 @@ export default function DashboardPage() {
   }, []);
 
   const handleLogout = async () => {
-    await fetch('/api/logout', { method: 'POST' });
-    router.push('/login');
-    router.refresh();
+    await fetch('/dashboard/api/logout', { method: 'POST' });
+    window.location.href = '/dashboard/login';
   };
 
   const showResponse = (key: string, message: string, success: boolean) => {
