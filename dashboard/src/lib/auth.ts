@@ -6,7 +6,7 @@ const SESSION_MAX_AGE = 60 * 60 * 24; // 24 hours
 const PASSWORD_FILE = '/data/password';
 
 // getStoredPassword baca dari file dulu, fallback ke env
-function getStoredPassword(): string {
+export function getStoredPassword(): string {
   try {
     const content = fs.readFileSync(PASSWORD_FILE, 'utf-8').trim();
     if (content.length > 0) return content;

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { setSession, isAuthenticated } from '@/lib/auth';
+import { setSession, isAuthenticated, getStoredPassword } from '@/lib/auth';
 import { LockKeyhole, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export default async function LoginPage() {
@@ -10,9 +10,9 @@ export default async function LoginPage() {
 
   async function handleLogin(formData: FormData) {
     'use server';
-    
+
     const password = formData.get('password') as string;
-    const expectedPassword = process.env.DASHBOARD_PASSWORD;
+    const expectedPassword = getStoredPassword();
 
     if (!password || !expectedPassword || password !== expectedPassword) {
       redirect('/login?error=1');
