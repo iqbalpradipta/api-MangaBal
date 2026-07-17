@@ -28,6 +28,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# /data volume untuk password file — writable oleh nextjs user
+RUN mkdir -p /data && chown -R nextjs:nodejs /data
+
 USER nextjs
 EXPOSE 3001
 ENV PORT=3001
