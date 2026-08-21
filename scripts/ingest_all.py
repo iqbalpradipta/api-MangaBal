@@ -19,11 +19,11 @@ def main() -> int:
             ingestor.progress(f"ingesting {title}", total_manga=total)
             try:
                 ingestor.ingest_series(series)
-            except Exception:
+            except Exception as exc:
                 ingestor.failed_items += 1
-                if not args.max_series:
-                    raise
-        ingestor.finish("all manga ingest finished")
+                print(f"[ERROR] Failed ingesting series '{title}': {exc}")
+                ingestor.progress(f"skipped failed manga {title}: {exc}")
+        ingestor.finish(f"all manga ingest finished (processed: {ingestor.processed_manga}, failed: {ingestor.failed_items})")
         return 0
     except Exception as exc:
         ingestor.fail(exc)

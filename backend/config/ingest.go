@@ -35,9 +35,9 @@ func LoadIngestConfig() IngestConfig {
 		pollSeconds = 5
 	}
 
-	timeoutMinutes, _ := strconv.Atoi(utils.GetEnv("INGEST_JOB_TIMEOUT_MINUTES", "120"))
+	timeoutMinutes, _ := strconv.Atoi(utils.GetEnv("INGEST_JOB_TIMEOUT_MINUTES", "1440"))
 	if timeoutMinutes < 1 {
-		timeoutMinutes = 120
+		timeoutMinutes = 1440
 	}
 
 	return IngestConfig{

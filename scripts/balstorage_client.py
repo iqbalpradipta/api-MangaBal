@@ -138,6 +138,14 @@ class BalStorageClient:
         for attempt in range(1, self.retries + 1):
             try:
                 resp = fn()
+                if resp.status_code == 401:
+                    print("BalStorage session expired (HTTP 401), re-authenticating...")
+                    try:
+                        self.login()
+                        resp = fn()
+                    except Exception as login_err:
+                        last_error = login_err
+
                 if resp.status_code not in {408, 429, 500, 502, 503, 504}:
                     return resp
                 last_error = RuntimeError(f"BalStorage HTTP {resp.status_code}: {resp.text[:300]}")

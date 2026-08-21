@@ -51,7 +51,13 @@ ensure_default() {
   fi
 }
 
-ensure_default "INGEST_JOB_TIMEOUT_MINUTES" "120"
+# Auto-upgrade old default of 120 to 1440
+if grep -qE "^INGEST_JOB_TIMEOUT_MINUTES=120" .env.production 2>/dev/null; then
+  sed -i "s|^INGEST_JOB_TIMEOUT_MINUTES=120|INGEST_JOB_TIMEOUT_MINUTES=1440|" .env.production
+  echo "Upgraded INGEST_JOB_TIMEOUT_MINUTES from 120 to 1440 in .env.production"
+fi
+
+ensure_default "INGEST_JOB_TIMEOUT_MINUTES" "1440"
 chmod 600 .env.production || true
 
 # Export secrets needed by docker compose build args
