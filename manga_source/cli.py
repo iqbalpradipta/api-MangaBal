@@ -62,19 +62,21 @@ def cmd_detail(args):
 
 def cmd_chapters(args):
     api = MangaSourceAPI()
-    result = api.list_chapters(args.id, args.page)
+    target = getattr(args, "slug", None) or args.id
+    result = api.list_chapters(target, args.page)
 
     if not result.get("data"):
         print("No chapters found. Try listing with --page 1")
         return
 
-    print(f"Series ID: {args.id}")
+    print(f"Series: {target}")
     print(f"Page: {result.get('meta', {}).get('page', '?')}")
     print("-" * 50)
     for ch in result["data"]:
         d = ch["data"]
         title = d.get("title") or "-"
-        print(f"  Ch {d['index']:4d}  |  {title}  |  "
+        idx_str = str(d.get("index", "-"))
+        print(f"  Ch {idx_str:>6}  |  {title}  |  "
               f"Views: {ch.get('views', {}).get('total', 0)}")
 
 
@@ -316,7 +318,9 @@ Examples:
 
     # chapters
     p = sub.add_parser("chapters", help="List chapters of a series")
-    p.add_argument("--id", type=int, required=True)
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--id", type=int)
+    g.add_argument("--slug")
     p.add_argument("--page", type=int, default=1)
     p.set_defaults(func=cmd_chapters)
 
@@ -325,7 +329,7 @@ Examples:
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--id", type=int)
     g.add_argument("--slug")
-    p.add_argument("--chapter", type=int, help="Download specific chapter only")
+    p.add_argument("--chapter", help="Download specific chapter only")
     p.add_argument("--all", action="store_true", help="Download all chapters")
     p.add_argument("--output", "-o", default="./downloads", help="Output directory")
     p.add_argument("--concurrency", "-c", type=int, default=10,
