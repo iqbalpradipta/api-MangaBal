@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
 	"net/http"
@@ -18,6 +19,9 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
+
+//go:embed app-ads.txt
+var appAdsTxt string
 
 func main() {
 	if err := godotenv.Load(); err != nil {
@@ -60,6 +64,10 @@ func main() {
 			"X-Internal-Token",
 		},
 	}))
+
+	e.GET("/app-ads.txt", func(c echo.Context) error {
+		return c.String(http.StatusOK, appAdsTxt)
+	})
 
 	routes.Register(e, db, cacheSvc)
 
